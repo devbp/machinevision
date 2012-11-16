@@ -1,0 +1,11 @@
+cmake_minimum_required (VERSION 2.6)
+PROJECT( helloworld_proj )
+FIND_PACKAGE( OpenCV REQUIRED )
+ADD_EXECUTABLE( feature siftdemo.cpp )
+TARGET_LINK_LIBRARIES( feature ${OpenCV_LIBS} )
+
+
+
+
+
+

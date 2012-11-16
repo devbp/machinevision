@@ -1,0 +1,251 @@
+#include <opencv2/opencv.hpp>
+#include <opencv2/nonfree/nonfree.hpp>
+#include <stdio.h>
+#include <iostream>
+#include <opencv2/core/core.hpp>
+//#include <opencv2/features2d/features2d.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/legacy/legacy.hpp> //(BruteForceMatcher is defined here
+#include <opencv2/nonfree/features2d.hpp>
+
+
+#include<getopt.h>
+
+using namespace cv;
+using namespace std;
+
+extern char *optarg;
+extern int optind;
+
+
+void usage(char *prog)
+{
+#ifndef _MSC_VER
+  const string bold("\033[1m");
+  const string normal("\033[m");
+#else
+  const string bold("");
+  const string normal("");
+#endif
+  cout << endl
+    << bold << "USAGE " << normal << endl
+    << "   " << prog << " [options] queryimage sourceimage" << endl << endl;
+  cout << bold << "OPTIONS" << normal << endl
+
+    << bold << "  -f" << normal << " NR, " << bold << "--featuremethod=" << normal << "NR   [default: 1]" << endl
+    << "         selects the feature extraction method for the images" << endl
+    << "           1 = SIFT features" << endl
+    << "           2 = SURF features. " << endl
+    << bold << "  -m" << normal << " NR, " << bold << "--matchmethod=" << normal << "NR   [default: 1]" << endl
+    << "         selects the feature extraction method for the images" << endl
+    << "           1 = FLANN BASED MATCH" << endl
+    << "           2 = FLANN BASED KNN MATCH METHOD"<<endl
+    << "           3 = FLANN BASED FIXED RADIUS" << endl
+    << "           4 = BRUTE FORCE METHOD"<<endl
+    << bold << "  -r" << normal << " NR, " << bold << "--radius=" << normal << "NR   [default: 20]" << endl
+    << "         radius value for FIXED RADIUS METHOD" << endl
+     << bold << "  -k" << normal << " NR, " << bold << "--knn=" << normal << "NR   [default: 20]" << endl
+    << "         k represents number of nearest neighbours for KNN MATCH METHOD" << endl;
+
+}
+
+
+int parseArgs(int argc, char **argv, int &featuremethod, int &matchmethod, int &radius, int &knn, Mat &img1, Mat &img2)
+{
+
+static struct option longopts[]={
+                                  
+{ "featuremethod",          required_argument,   0,  'f' },
+{ "matchmethod",            required_argument,   0,  'm' },
+{ "radius",                 required_argument,   0,  'r' },
+{ "knn",                    required_argument,   0,  'k' },
+{ 0,           0,   0,   0} 
+                                 };
+int c;
+
+while ((c = getopt_long(argc, argv, "f:m:r:k", longopts, NULL)) != -1)
+ {
+     switch(c)
+       { case 'c': 
+          featuremethod=atoi(optarg);
+            break;
+
+         case 'm':
+          matchmethod =atoi(optarg);
+ break;
+
+   case 'r':
+      radius=atoi(optarg);
+       break;
+
+
+      case 'k':
+       knn=atoi(optarg);
+         }//end of choice
+
+  }//end of while
+
+/*if (optind != 3) {
+    cerr << "\n*** Images missing ***" << endl;
+    usage(argv[0]);
+  }*/
+
+img1=imread(argv[optind]);
+img2=imread(argv[optind+1]);
+
+return 0;
+} //end of function
+
+
+int main(int argc, char** argv)
+{
+    
+     if(argc < 2)
+      usage(argv[0]);
+int featuremethod=1;
+int matchmethod=1;
+int knn=10;
+int radius=15;
+   
+Mat img1;
+Mat img2;    
+parseArgs(argc,argv,featuremethod,matchmethod,radius,knn,img1,img2);
+   //sift object
+    //SIFT sift;
+  //SURF object
+   //SURF surf;
+   
+ //keypoints for two different images
+    vector<KeyPoint> key_points1;
+    vector<KeyPoint> key_points2;
+ //descriptiors for two different images
+    Mat descriptors1;
+    Mat descriptors2;
+    //finding keypoints and descriptors using opencv sift
+  if(featuremethod==1)
+  {
+
+SiftFeatureDetector detector(10);
+detector.detect(img1,key_points1);
+detector.detect(img2,key_points2);
+SiftDescriptorExtractor extractor;
+extractor.compute(img1,key_points1,descriptors1);
+extractor.compute(img2,key_points2,descriptors2);
+
+/***optionally we can use this constructor also****/
+  // sift(img1, Mat(), key_points1, descriptors1);
+   // sift(img2, Mat(), key_points2, descriptors2);
+  }
+// finding keypoints and descriptors using surf feature extractor
+ 
+ if(featuremethod==2)
+ {
+
+SurfFeatureDetector detector(10);
+detector.detect(img1,key_points1);
+detector.detect(img2,key_points2);
+SurfDescriptorExtractor extractor;
+extractor.compute(img1,key_points1,descriptors1);
+extractor.compute(img2,key_points2,descriptors2);
+
+ //surf(img1, Mat(), key_points1, descriptors1);
+ //surf(img2, Mat(), key_points2, descriptors1);
+   } 
+     Mat output_img1;
+     Mat img_matches;
+  //draw the keypoints of the image
+    drawKeypoints(img1, key_points1, output_img1);
+    namedWindow("KeypointsImage1");
+    imshow("KeypointsImage1", output_img1);
+    
+std::vector< DMatch > matches;
+vector<vector<cv::DMatch> > MatchesVector;
+   
+if(matchmethod==1)
+     {
+  
+  FlannBasedMatcher matcher;
+  matcher.match( descriptors1, descriptors2, matches);
+   }
+ 
+ if(matchmethod==2) 
+  {
+   FlannBasedMatcher matcher;
+   
+   matcher.knnMatch(descriptors1, descriptors2, MatchesVector, knn);
+
+    for(unsigned int i = 0; i < MatchesVector.size(); i++){
+	for(unsigned int k = 0; k < MatchesVector[i].size(); k++){
+	  matches.push_back(MatchesVector[i][k]);
+	}
+      }
+   
+  }
+
+//fixed radius based matching method
+ if(matchmethod==3)
+   {
+    FlannBasedMatcher matcher;
+    matcher.radiusMatch(descriptors1,descriptors2, MatchesVector, radius);
+    for(unsigned int i = 0; i < MatchesVector.size(); i++){
+	for(unsigned int j = 0; j < MatchesVector[i].size(); j++){
+	  matches.push_back(MatchesVector[i][j]);
+	}
+      }
+   
+  }
+
+
+ if(matchmethod==4)
+{
+ cv::BruteForceMatcher< L2<float> > matcher;
+matcher.match( descriptors1, descriptors2, matches);
+}
+    
+
+  drawMatches( img1, key_points1, img2, key_points2,matches, img_matches, Scalar::all(-1), Scalar::all(-1),
+               vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
+    namedWindow("MatchedImage before filtering");
+    imshow("MatchedImageImage before filtering", img_matches);
+//save the image    
+cv::imwrite("result.jpg", img_matches);
+  //draw the matching images
+double max_dist = 0.5; double min_dist = 10000;
+
+ for( int i = 0; i < descriptors1.rows; i++ )
+  { double dist = matches[i].distance;
+    if( dist < min_dist ) min_dist = dist;
+    if( dist > max_dist ) max_dist = dist;
+  }
+
+  printf("-- Max dist : %f \n", max_dist );
+  printf("-- Min dist : %f \n", min_dist );
+
+  //-- Draw only "good" matches (i.e. whose distance is less than 2*min_dist )
+  
+  std::vector< DMatch > good_matches;
+
+
+//finding the good matches
+  for( int i = 0; i < descriptors1.rows; i++)
+  { if( matches[i].distance < 2*min_dist )
+    { good_matches.push_back( matches[i]); }
+  }
+
+for( int i = 0; i < good_matches.size(); i++ )
+  { 
+
+cout<<"Good Matches "<<i<<endl<<"Keypoint1 "<<good_matches[i].queryIdx<<endl<<"Keypoint2 '"<<good_matches[i].trainIdx<<endl;
+ }
+ 
+           drawMatches( img1, key_points1, img2, key_points2,
+               good_matches, img_matches, Scalar::all(-1), Scalar::all(-1),
+               vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
+     namedWindow("MatchedImage");
+     imshow("MatchedImage", img_matches);
+     cv::imwrite("result2.jpg", img_matches);
+     waitKey(0);
+     destroyWindow("Image");
+
+    return 0;
+}
